@@ -87,7 +87,7 @@ public class WebDavServer extends NanoHTTPD {
         }
     };
 
-    private final static String ALLOWED_METHODS = "GET, OPTIONS, HEAD, PROPFIND";
+    private final static String ALLOWED_METHODS = "GET, DELETE, OPTIONS, HEAD, PROPFIND";
 
     private static final DateFormat DATE_FORMAT = new SimpleDateFormat("E, d MMM yyyy HH:mm:ss 'GMT'", Locale.getDefault());
 
@@ -218,14 +218,11 @@ public class WebDavServer extends NanoHTTPD {
         }
 
         switch (method) {
-            case OPTIONS:
-                return handleOPTIONS(headers);
-            case PROPFIND:
-                return handlePROPFIND(uri, headers);
-            case GET:case HEAD:
-                return handleGET(uri, headers);
-            default:
-                return getForbiddenErrorResponse("");
+            case OPTIONS: return handleOPTIONS(headers);
+            case PROPFIND: return handlePROPFIND(uri, headers);
+            case GET:case HEAD: return handleGET(uri, headers);
+            case DELETE: return handleDELETE(uri, headers);
+            default: return getForbiddenErrorResponse("");
         }
     }
 
@@ -267,9 +264,9 @@ public class WebDavServer extends NanoHTTPD {
         final int depth;
 
         String depthHeader = headers.get("depth");
-        if (depthHeader.equalsIgnoreCase("0")) {
+        if (depthHeader != null && depthHeader.equalsIgnoreCase("0")) {
             depth = 0;
-        } else if (depthHeader.equalsIgnoreCase("1")) {
+        } else if (depthHeader != null && depthHeader.equalsIgnoreCase("1")) {
             depth = 1;
         } else {
             return getBadRequestErrorResponse("Unsupported 'Depth' header: " + depthHeader);
@@ -370,7 +367,6 @@ public class WebDavServer extends NanoHTTPD {
         }
 
         final String absolutePath = appendPathComponent(rootDir.getAbsolutePath(), uri);
-
         final File file = new File(absolutePath);
 
         // Because HEAD requests are mapped to GET ones, we need to handle directories but it's OK to return nothing per http://webdav.org/specs/rfc4918.html#rfc.section.9.4
@@ -484,6 +480,27 @@ public class WebDavServer extends NanoHTTPD {
         }
 
         return res;
+    }
+
+    protected Response handleDELETE(final String uri, final Map<String, String> headers) {
+
+        String depthHeader = headers.get("depth");
+        if (depthHeader != null && !depthHeader.equalsIgnoreCase("infinity")) {
+            return getBadRequestErrorResponse("Unsupported 'Depth' header: " + depthHeader);
+        }
+
+        if (!canServeUri(uri)) {
+            return getNotFoundErrorResponse("");
+        }
+
+        final String absolutePath = appendPathComponent(rootDir.getAbsolutePath(), uri);
+        final File file = new File(absolutePath);
+
+        if (!file.delete()) {
+            return getInternalErrorResponse("Failed deleting " + uri);
+        }
+
+        return newFixedLengthResponse(Response.Status.NO_CONTENT, MIME_PLAINTEXT, "");
     }
 
     private Response newFixedFileResponse(File file, String mime) throws FileNotFoundException {
