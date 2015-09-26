@@ -579,58 +579,46 @@ public class WebDavServer extends NanoHTTPD {
             dstFile.delete();
         }
 
-        if (move) {
-            if (!srcFile.renameTo(dstFile)) {
-                return getForbiddenErrorResponse("Failed moving " + srcRelativePath + " to " + dstRelativePath);
+        try {
+            if (move) {
+                if (!srcFile.renameTo(dstFile)) {
+                    return getForbiddenErrorResponse("Failed moving " + srcRelativePath + " to " + dstRelativePath);
+                }
             }
-        }
-        else {
-            if (!copyFileOrDirectory(srcFile, dstFile)) {
-                return getForbiddenErrorResponse("Failed copying " + srcRelativePath + " to " + dstRelativePath);
+            else {
+                copyFileOrDirectory(srcFile, dstFile);
             }
+        } catch (IOException e) {
+            return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, MIME_HTML, e.getMessage());
         }
 
         return newFixedLengthResponse(existing ? Response.Status.NO_CONTENT : Response.Status.CREATED, MIME_HTML, "");
     }
 
-    public static boolean copyFileOrDirectory(final File srcFile, final File dstFile) {
-        boolean result = true;
+    public static void copyFileOrDirectory(final File srcFile, final File dstFile) throws IOException {
+        FileInputStream in = null;
+        FileOutputStream out = null;
+
         try {
             if (srcFile.isDirectory()) {
+                if (!dstFile.exists()) {
+                    dstFile.mkdirs();
+                }
 
-                String files[] = srcFile.list();
-                int filesLength = files.length;
-                for (int i = 0; i < filesLength; i++) {
-                    File src1 = new File(srcFile, files[i]);
-                    copyFileOrDirectory(src1, dstFile);
-
+                String children[] = srcFile.list();
+                int childrenLength = children.length;
+                for (int i = 0; i < childrenLength; i++) {
+                    File srcChild = new File(srcFile, children[i]);
+                    File dstChild = new File(dstFile, children[i]);
+                    copyFileOrDirectory(srcChild, dstChild);
                 }
             } else {
-                copyFile(srcFile, dstFile);
-            }
-        } catch (IOException e) {
-            result = false;
-            e.printStackTrace();
-        }
-
-        return result;
-    }
-
-    public static boolean copyFile(File srcFile, File dstFile) throws IOException {
-        boolean result = true;
-        if (!dstFile.getParentFile().exists())
-            dstFile.getParentFile().mkdirs();
-
-        if (!dstFile.exists()) {
-            dstFile.createNewFile();
-        }
-
-        if (srcFile.exists()) {
-
-            FileInputStream in = null;
-            FileOutputStream out = null;
-            try {
-
+                if (!dstFile.getParentFile().exists()) {
+                    dstFile.getParentFile().mkdirs();
+                }
+                if (!dstFile.exists()) {
+                    dstFile.createNewFile();
+                }
                 in = new FileInputStream(srcFile);
                 out = new FileOutputStream(dstFile);
 
@@ -640,19 +628,17 @@ public class WebDavServer extends NanoHTTPD {
                 while ((len = in.read(buf)) > 0) {
                     out.write(buf, 0, len);
                 }
-            } catch (IOException e) {
-                result = false;
-                e.printStackTrace();
-            } finally {
-                if (in != null) {
-                    in.close();
-                }
-                if (out != null) {
-                    out.close();
-                }
+            }
+        } catch (IOException e) {
+            throw e;
+        } finally {
+            if (in != null) {
+                in.close();
+            }
+            if (out != null) {
+                out.close();
             }
         }
-        return result;
     }
 
     protected Response handlePUT(final String uri, final IHTTPSession session) {
