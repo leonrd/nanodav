@@ -87,7 +87,7 @@ public class WebDavServer extends NanoHTTPD {
         }
     };
 
-    private final static String ALLOWED_METHODS = "GET, DELETE, OPTIONS, HEAD, PROPFIND, MKCOL, COPY, MOVE, PUT";
+    private final static String ALLOWED_METHODS = "GET, DELETE, OPTIONS, HEAD, PROPFIND, MKCOL, COPY, MOVE, PUT, LOCK, UNLOCK";
 
     private static final DateFormat DATE_FORMAT = new SimpleDateFormat("E, d MMM yyyy HH:mm:ss 'GMT'", Locale.getDefault());
 
@@ -216,28 +216,37 @@ public class WebDavServer extends NanoHTTPD {
             return getInternalErrorResponse("Given root path is not a directory.");
         }
 
+        Response  response;
+
         switch (method) {
-            case OPTIONS: return handleOPTIONS(headers);
-            case PROPFIND: return handlePROPFIND(uri, headers);
-            case GET:case HEAD: return handleGET(uri, headers);
-            case DELETE: return handleDELETE(uri, headers);
-            case MKCOL: return handleMKCOL(uri);
-            case COPY: return handleCOPYorMOVE(uri, headers, false);
-            case MOVE: return handleCOPYorMOVE(uri, headers, true);
-            case PUT: return handlePUT(session);
-            case LOCK: return handleLOCK(uri);
-            case UNLOCK: return handleUNLOCK(uri);
-            default: return getForbiddenErrorResponse("");
+            case OPTIONS: response = handleOPTIONS(headers); break;
+            case PROPFIND: response = handlePROPFIND(uri, headers); break;
+            case GET:case HEAD: response = handleGET(uri, headers); break;
+            case DELETE: response = handleDELETE(uri, headers); break;
+            case MKCOL: response = handleMKCOL(uri); break;
+            case COPY: response = handleCOPYorMOVE(uri, headers, false); break;
+            case MOVE: response = handleCOPYorMOVE(uri, headers, true); break;
+            case PUT: response = handlePUT(session); break;
+            case LOCK: response = handleLOCK(uri); break;
+            case UNLOCK: response = handleUNLOCK(uri); break;
+            default: response = getForbiddenErrorResponse(""); break;
         }
+
+        if (!this.quiet) {
+            System.out.println("  STATUS: " + response.getStatus());
+        }
+
+        return response;
     }
 
     protected boolean isMacFinder(Map<String, String> headers) {
-        final String userAgent = headers.get("User-Agent");
+        final String userAgent = headers.get("user-agent");
         return userAgent != null && (userAgent.startsWith("WebDAVFS/") || userAgent.startsWith("WebDAVLib/"));
     }
 
     protected Response handleOPTIONS(final Map<String, String> headers) {
         Response response = newFixedLengthResponse(Response.Status.OK, MIME_PLAINTEXT, "");
+
 
         if (isMacFinder(headers)) {
             response.addHeader("DAV", "1, 2");
@@ -269,6 +278,7 @@ public class WebDavServer extends NanoHTTPD {
         final int depth;
 
         String depthHeader = headers.get("depth");
+        // TODO: Return 403 / propfind-finite-depth for "infinity" depth
         if (depthHeader != null && depthHeader.equalsIgnoreCase("0")) {
             depth = 0;
         } else if (depthHeader != null && depthHeader.equalsIgnoreCase("1")) {
@@ -682,6 +692,14 @@ public class WebDavServer extends NanoHTTPD {
         }
 
         return newFixedLengthResponse(Response.Status.OK, MIME_PLAINTEXT, "");
+    }
+
+    protected Response handleLOCK(final String uri) {
+        return null;
+    }
+
+    protected Response handleUNLOCK(final String uri) {
+        return null;
     }
 
     private Response newFixedFileResponse(File file, String mime) throws FileNotFoundException {
