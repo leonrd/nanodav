@@ -770,7 +770,7 @@ public class WebDavServer extends NanoHTTPD {
             content += "<D:timeout>" + timeoutHeader + "</D:timeout>\n";
         }
         content += "<D:locktoken><D:href>" + token + "</D:href></D:locktoken>\n" +
-                "<D:lockroot><D:href>http://" + appendPathComponent(headers.get("host"), uri) + "</D:href></D:lockroot>\n" +
+                "<D:lockroot><D:href>http://" + encodeUri(appendPathComponent(headers.get("host"), uri)) + "</D:href></D:lockroot>\n" +
                 "</D:activelock>\n</D:lockdiscovery>\n" +
                 "</D:prop>";
 
