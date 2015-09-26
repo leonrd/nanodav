@@ -34,6 +34,9 @@ package io.leonrd.webdav;
  */
 
 import fi.iki.elonen.NanoHTTPD;
+import org.kxml2.io.KXmlParser;
+import org.xmlpull.v1.XmlPullParser;
+import org.xmlpull.v1.XmlPullParserException;
 
 import java.io.*;
 import java.net.URLEncoder;
@@ -163,6 +166,11 @@ public class WebDavServer extends NanoHTTPD {
         return newFixedLengthResponse(Response.Status.FORBIDDEN, NanoHTTPD.MIME_PLAINTEXT, "FORBIDDEN: " + s);
     }
 
+    protected Response getMethodNotAllowed(String s) {
+        return newFixedLengthResponse(Response.Status.METHOD_NOT_ALLOWED, MIME_PLAINTEXT, "METHOD NOT ALLOWED: " + s);
+
+    }
+
     protected Response getInternalErrorResponse(String s) {
         return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, NanoHTTPD.MIME_PLAINTEXT, "INTERNAL ERROR: " + s);
     }
@@ -226,9 +234,9 @@ public class WebDavServer extends NanoHTTPD {
             case MKCOL: response = handleMKCOL(uri); break;
             case COPY: response = handleCOPYorMOVE(uri, headers, false); break;
             case MOVE: response = handleCOPYorMOVE(uri, headers, true); break;
-            case PUT: response = handlePUT(session); break;
-            case LOCK: response = handleLOCK(uri); break;
-            case UNLOCK: response = handleUNLOCK(uri); break;
+            case PUT: response = handlePUT(uri, session); break;
+            case LOCK: response = handleLOCK(uri, headers, session); break;
+            case UNLOCK: response = handleUNLOCK(uri, headers, session); break;
             default: response = getForbiddenErrorResponse(""); break;
         }
 
@@ -272,7 +280,7 @@ public class WebDavServer extends NanoHTTPD {
         }
 
         if (!canServeUri(uri)) {
-            return getNotFoundErrorResponse("");
+            return getNotFoundErrorResponse(uri + " does not exist.");
         }
 
         final int depth;
@@ -296,8 +304,8 @@ public class WebDavServer extends NanoHTTPD {
             }
         }
 
-        final StringBuilder xmlStringBuilder = new StringBuilder("<?xml version=\"1.0\" encoding=\"utf-8\" ?>" +
-                "<D:multistatus xmlns:D=\"DAV:\">");
+        final StringBuilder xmlStringBuilder = new StringBuilder("<?xml version=\"1.0\" encoding=\"utf-8\" ?>\n" +
+                "<D:multistatus xmlns:D=\"DAV:\">\n");
         if (file.isDirectory()) {
             if (file.list() == null) {
                 return getInternalErrorResponse("Failed listing directory " + uri);
@@ -306,7 +314,7 @@ public class WebDavServer extends NanoHTTPD {
         } else {
             appendFileResource(xmlStringBuilder, uri, file);
         }
-        xmlStringBuilder.append("</D:multistatus>");
+        xmlStringBuilder.append("</D:multistatus>\n");
 
         final String content = xmlStringBuilder.toString();
 
@@ -323,17 +331,17 @@ public class WebDavServer extends NanoHTTPD {
         final String lastModified = DATE_FORMAT.format(new Date(directory.lastModified()));
 
         output.append("<D:response>" +
-                "<D:href>" + uri + "</D:href>" +
-                "<D:propstat>" +
-                "<D:prop>" +
-                "<D:displayname>" + displayName + "</D:displayname>" +
-                "<D:creationdate>" + creationDate + "</D:creationdate>" +
-                "<D:getlastmodified>" + lastModified + "</D:getlastmodified>" +
-                "<D:resourcetype><D:collection/></D:resourcetype>" +
-                "</D:prop>" +
-                "<D:status>HTTP/1.1 200 OK</D:status>" +
-                "</D:propstat>" +
-                "</D:response>");
+                "<D:href>" + uri + "</D:href>\n" +
+                "<D:propstat>\n" +
+                "<D:prop>\n" +
+                "<D:displayname>" + displayName + "</D:displayname>\n" +
+                "<D:creationdate>" + creationDate + "</D:creationdate\n>" +
+                "<D:getlastmodified>" + lastModified + "</D:getlastmodified\n>" +
+                "<D:resourcetype><D:collection/></D:resourcetype>\n" +
+                "</D:prop>\n" +
+                "<D:status>HTTP/1.1 200 OK</D:status>\n" +
+                "</D:propstat>\n" +
+                "</D:response>\n");
 
         if (depth > 0) {
             final File files[] = directory.listFiles();
@@ -360,19 +368,19 @@ public class WebDavServer extends NanoHTTPD {
         final String lastModified = DATE_FORMAT.format(new Date(file.lastModified()));
         final long contentLength = file.length();
 
-        output.append("<D:response>" +
-                "<D:href>" + uri + "</D:href>" +
-                "<D:propstat>" +
-                "<D:prop>" +
-                "<D:displayname>" + displayName + "</D:displayname>" +
-                "<D:creationdate>" + creationDate + "</D:creationdate>" +
-                "<D:getlastmodified>" + lastModified + "</D:getlastmodified>" +
-                "<D:getcontentlength>" + contentLength + "</D:getcontentlength>" +
-                "<D:resourcetype/>" +
-                "</D:prop>" +
-                "<D:status>HTTP/1.1 200 OK</D:status>" +
-                "</D:propstat>" +
-                "</D:response>");
+        output.append("<D:response>\n" +
+                "<D:href>" + uri + "</D:href>\n" +
+                "<D:propstat>\n" +
+                "<D:prop>\n" +
+                "<D:displayname>" + displayName + "</D:displayname>\n" +
+                "<D:creationdate>" + creationDate + "</D:creationdate>\n" +
+                "<D:getlastmodified>" + lastModified + "</D:getlastmodified>\n" +
+                "<D:getcontentlength>" + contentLength + "</D:getcontentlength>\n" +
+                "<D:resourcetype/>\n" +
+                "</D:prop>\n" +
+                "<D:status>HTTP/1.1 200 OK</D:status>\n" +
+                "</D:propstat>\n" +
+                "</D:response>\n");
     }
 
     protected Response handleGET(final String uri, final Map<String, String> headers) {
@@ -538,7 +546,7 @@ public class WebDavServer extends NanoHTTPD {
         }
 
         if (!canServeUri(uri)) {
-            return getNotFoundErrorResponse("");
+            return getNotFoundErrorResponse(uri + " does not exist.");
         }
 
         final String srcRelativePath = uri;
@@ -645,19 +653,7 @@ public class WebDavServer extends NanoHTTPD {
         return result;
     }
 
-    protected Response handlePUT(final IHTTPSession session) {
-        String uri = session.getUri();
-        // Remove URL arguments
-        uri = uri.trim().replace(File.separatorChar, '/');
-        if (uri.indexOf('?') >= 0) {
-            uri = uri.substring(0, uri.indexOf('?'));
-        }
-
-        // Prohibit getting out of current directory
-        if (uri.contains("../")) {
-            return getForbiddenErrorResponse("Won't serve ../ for security reasons.");
-        }
-
+    protected Response handlePUT(final String uri, final IHTTPSession session) {
         final String dstRelativePath = uri;
         final String dstAbsolutePath = appendPathComponent(rootDir.getAbsolutePath(), uri);
         final File dstFile = new File(dstAbsolutePath);
@@ -668,7 +664,7 @@ public class WebDavServer extends NanoHTTPD {
         }
 
         if (existing && dstFile.isDirectory()) {
-            return newFixedLengthResponse(Response.Status.METHOD_NOT_ALLOWED, MIME_PLAINTEXT, "PUT not allowed on existing collection " + dstRelativePath);
+            return getMethodNotAllowed("PUT not allowed on existing collection " + dstRelativePath);
         }
         try {
             Map<String, String> files = new HashMap<String, String>();
@@ -694,12 +690,182 @@ public class WebDavServer extends NanoHTTPD {
         return newFixedLengthResponse(Response.Status.OK, MIME_PLAINTEXT, "");
     }
 
-    protected Response handleLOCK(final String uri) {
-        return null;
+    protected Response handleLOCK(final String uri, final Map<String, String> headers, final IHTTPSession session) {
+        if (!isMacFinder(headers)) {
+            return getMethodNotAllowed("LOCK method only allowed for Mac Finder");
+        }
+        if (!canServeUri(uri)) {
+            return getNotFoundErrorResponse(uri + " does not exist.");
+        }
+
+        final String depthHeader = headers.get("depth");
+        final String timeoutHeader = headers.get("timeout");
+        final String contentLengthHeader = headers.get("content-length");
+        int contentLength = 0;
+        if (contentLengthHeader != null) {
+            contentLength = Integer.parseInt(contentLengthHeader);
+        }
+
+        String scope = null;
+        String type = null;
+        String owner = null;
+        String token = null;
+        boolean success = true;
+
+        InputStream sessionInputStream = session.getInputStream();
+        InputStream byteInputStream = null;
+        try {
+
+            // convert PullInputStream to ByteArrayInputStream
+            byte[] data = new byte[contentLength];
+            sessionInputStream.read(data);
+            byteInputStream = new ByteArrayInputStream(data);
+
+            final String ns = "DAV:";
+            XmlPullParser parser = new KXmlParser();
+            parser.setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, true);
+            parser.setInput(byteInputStream, null);
+
+            parser.nextTag();
+            parser.require(XmlPullParser.START_TAG, ns, "lockinfo");
+            while (parser.next() != XmlPullParser.END_TAG) {
+                if (parser.getEventType() != XmlPullParser.START_TAG) {
+                    continue;
+                }
+                String name = parser.getName();
+                if (name.equals("lockscope")) {
+                    scope = readScope(parser, ns);
+                } else if (name.equals("locktype")) {
+                    type = readType(parser, ns);
+                } else if (name.equals("owner")) {
+                    owner = readOwner(parser, ns);
+                } else {
+                    skip(parser);
+                }
+            }
+
+        } catch (XmlPullParserException e) {
+            success = false;
+        } catch (Exception e) {
+            e.printStackTrace();
+            success = false;
+        } finally {
+            try {
+                if (byteInputStream != null) {
+                    byteInputStream.close();
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+
+        if (!success) {
+            return getBadRequestErrorResponse("Invalid DAV properties");
+        }
+
+        if (!scope.equalsIgnoreCase("exclusive") || !type.equalsIgnoreCase("write") || !depthHeader.equalsIgnoreCase("0")) {
+            return getForbiddenErrorResponse("Locking request " + scope + " " + type + " " + depthHeader + " " + uri +  " is not allowed");
+        }
+
+        token = "urn:uuid:" + UUID.randomUUID();
+
+        String content = "<?xml version=\"1.0\" encoding=\"utf-8\" ?>\n" +
+                "<D:prop xmlns:D=\"DAV:\">\n" +
+                "<D:lockdiscovery>\n<D:activelock>\n" +
+                "<D:locktype><D:" + type + "/></D:locktype>\n" +
+                "<D:lockscope><D:" + scope + "/></D:lockscope>\n" +
+                "<D:depth>" + depthHeader + "</D:depth>\n";
+        if (owner != null) {
+            content += "<D:owner><D:href>" + owner + "</D:href></D:owner>\n";
+        }
+        if (timeoutHeader != null) {
+            content += "<D:timeout>" + timeoutHeader + "</D:timeout>\n";
+        }
+        content += "<D:locktoken><D:href>" + token + "</D:href></D:locktoken>\n" +
+                "<D:lockroot><D:href>http://" + headers.get("host") + "/" + uri + "</D:href></D:lockroot>\n" +
+                "</D:activelock>\n</D:lockdiscovery>\n" +
+                "</D:prop>";
+
+
+        return newFixedLengthResponse(Response.Status.MULTI_STATUS, MIME_TYPES.get("xml"), content);
     }
 
-    protected Response handleUNLOCK(final String uri) {
-        return null;
+    private void skip(XmlPullParser parser) throws XmlPullParserException, IOException {
+        if (parser.getEventType() != XmlPullParser.START_TAG) {
+            throw new IllegalStateException();
+        }
+        int depth = 1;
+        while (depth != 0) {
+            switch (parser.next()) {
+                case XmlPullParser.END_TAG:
+                    depth--;
+                    break;
+                case XmlPullParser.START_TAG:
+                    depth++;
+                    break;
+            }
+        }
+    }
+
+    private String readScope(XmlPullParser parser, String namespace) throws IOException, XmlPullParserException {
+        parser.require(XmlPullParser.START_TAG, namespace, "lockscope");
+        parser.nextTag();
+        String scope = parser.getName();
+        parser.nextTag();
+        parser.nextTag();
+        parser.require(XmlPullParser.END_TAG, namespace, "lockscope");
+        return scope;
+    }
+
+    private String readType(XmlPullParser parser, String namespace) throws IOException, XmlPullParserException {
+        parser.require(XmlPullParser.START_TAG, namespace, "locktype");
+        parser.nextTag();
+        String type = parser.getName();
+        parser.nextTag();
+        parser.nextTag();
+        parser.require(XmlPullParser.END_TAG, namespace, "locktype");
+        return type;
+    }
+
+    private String readOwner(XmlPullParser parser, String namespace) throws IOException, XmlPullParserException {
+        parser.require(XmlPullParser.START_TAG, namespace, "owner");
+        parser.nextTag();
+        String owner = readHref(parser, namespace);
+        parser.nextTag();
+        parser.require(XmlPullParser.END_TAG, namespace, "owner");
+        return owner;
+    }
+
+    private String readHref(XmlPullParser parser, String namespace) throws IOException, XmlPullParserException {
+        parser.require(XmlPullParser.START_TAG, namespace, "href");
+        String href = readText(parser);
+        parser.require(XmlPullParser.END_TAG, namespace, "href");
+        return href;
+    }
+
+    private String readText(XmlPullParser parser) throws IOException, XmlPullParserException {
+        String result = "";
+        if (parser.next() == XmlPullParser.TEXT) {
+            result = parser.getText();
+            parser.nextTag();
+        }
+        return result;
+    }
+
+    protected Response handleUNLOCK(final String uri, final Map<String, String> headers, final IHTTPSession session) {
+        if (!isMacFinder(headers)) {
+            return getMethodNotAllowed("UNLOCK method only allowed for Mac Finder");
+        }
+        if (!canServeUri(uri)) {
+            return getNotFoundErrorResponse(uri + " does not exist.");
+        }
+
+        String tokenHeader = headers.get("Lock-Token");
+        if (tokenHeader == null) {
+            return getBadRequestErrorResponse("Missing 'Lock-Token' header");
+        }
+
+        return newFixedLengthResponse(Response.Status.NO_CONTENT, MIME_PLAINTEXT, "");
     }
 
     private Response newFixedFileResponse(File file, String mime) throws FileNotFoundException {
