@@ -40,7 +40,6 @@ import java.net.URLEncoder;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.*;
-import java.util.logging.FileHandler;
 
 public class WebDavServer extends NanoHTTPD {
 
@@ -88,7 +87,7 @@ public class WebDavServer extends NanoHTTPD {
         }
     };
 
-    private final static String ALLOWED_METHODS = "GET, DELETE, OPTIONS, HEAD, PROPFIND, MKCOL, COPY, MOVE";
+    private final static String ALLOWED_METHODS = "GET, DELETE, OPTIONS, HEAD, PROPFIND, MKCOL, COPY, MOVE, PUT";
 
     private static final DateFormat DATE_FORMAT = new SimpleDateFormat("E, d MMM yyyy HH:mm:ss 'GMT'", Locale.getDefault());
 
@@ -182,7 +181,6 @@ public class WebDavServer extends NanoHTTPD {
 
     @Override
     public Response serve(IHTTPSession session) {
-
         String uri = session.getUri();
         // Remove URL arguments
         uri = uri.trim().replace(File.separatorChar, '/');
@@ -226,6 +224,9 @@ public class WebDavServer extends NanoHTTPD {
             case MKCOL: return handleMKCOL(uri);
             case COPY: return handleCOPYorMOVE(uri, headers, false);
             case MOVE: return handleCOPYorMOVE(uri, headers, true);
+            case PUT: return handlePUT(session);
+            case LOCK: return handleLOCK(uri);
+            case UNLOCK: return handleUNLOCK(uri);
             default: return getForbiddenErrorResponse("");
         }
     }
@@ -365,7 +366,6 @@ public class WebDavServer extends NanoHTTPD {
     }
 
     protected Response handleGET(final String uri, final Map<String, String> headers) {
-
         if (!canServeUri(uri)) {
             return getNotFoundErrorResponse("");
         }
@@ -487,7 +487,6 @@ public class WebDavServer extends NanoHTTPD {
     }
 
     protected Response handleDELETE(final String uri, final Map<String, String> headers) {
-
         String depthHeader = headers.get("depth");
         if (depthHeader != null && !depthHeader.equalsIgnoreCase("infinity")) {
             return getBadRequestErrorResponse("Unsupported 'Depth' header: " + depthHeader);
@@ -520,7 +519,6 @@ public class WebDavServer extends NanoHTTPD {
     }
 
     protected Response handleCOPYorMOVE(final String uri, final Map<String, String> headers, final boolean move) {
-
         if (!move) {
             String depthHeader = headers.get("depth");
             // TODO: Support "Depth: 0"
@@ -552,12 +550,15 @@ public class WebDavServer extends NanoHTTPD {
             return newFixedLengthResponse(Response.Status.CONFLICT, MIME_PLAINTEXT, "Invalid destination " + dstRelativePath);
         }
 
+        boolean overwrite = false;
         final String overwriteHeader = headers.get("overwrite");
-        if (existing &&
-                (overwriteHeader == null
-                        || (move && !overwriteHeader.equalsIgnoreCase("T"))
-                        || (!move && overwriteHeader.equalsIgnoreCase("F")))) {
+        if (overwriteHeader == null
+                || (move && !overwriteHeader.equalsIgnoreCase("T"))
+                || (!move && overwriteHeader.equalsIgnoreCase("F"))) {
+                overwrite = true;
+        }
 
+        if (existing && !overwrite) {
             return newFixedLengthResponse(Response.Status.PRECONDITION_FAILED, MIME_PLAINTEXT, "Destination " + dstRelativePath + " already exists");
         }
 
@@ -634,16 +635,53 @@ public class WebDavServer extends NanoHTTPD {
         return result;
     }
 
-    protected Response handlePUT(final String uri) {
-        return null;
-    }
+    protected Response handlePUT(final IHTTPSession session) {
+        String uri = session.getUri();
+        // Remove URL arguments
+        uri = uri.trim().replace(File.separatorChar, '/');
+        if (uri.indexOf('?') >= 0) {
+            uri = uri.substring(0, uri.indexOf('?'));
+        }
 
-    protected Response handleLOCK(final String uri) {
-        return null;
-    }
+        // Prohibit getting out of current directory
+        if (uri.contains("../")) {
+            return getForbiddenErrorResponse("Won't serve ../ for security reasons.");
+        }
 
-    protected Response handleUNLOCK(final String uri) {
-        return null;
+        final String dstRelativePath = uri;
+        final String dstAbsolutePath = appendPathComponent(rootDir.getAbsolutePath(), uri);
+        final File dstFile = new File(dstAbsolutePath);
+        final boolean existing = dstFile.exists();
+        final File dstParent = dstFile.getParentFile();
+        if (!dstParent.exists() || !dstParent.isDirectory()) {
+            return newFixedLengthResponse(Response.Status.CONFLICT, MIME_PLAINTEXT, "Missing intermediate collection(s) for " + dstRelativePath);
+        }
+
+        if (existing && dstFile.isDirectory()) {
+            return newFixedLengthResponse(Response.Status.METHOD_NOT_ALLOWED, MIME_PLAINTEXT, "PUT not allowed on existing collection " + dstRelativePath);
+        }
+        try {
+            Map<String, String> files = new HashMap<String, String>();
+            session.parseBody(files);
+
+            Set<String> keys = files.keySet();
+            for(String key: keys){
+                String tempLocation = files.get(key);
+                File tempfile = new File(tempLocation);
+
+                if (existing) {
+                    dstFile.delete();
+                }
+
+                copyFileOrDirectory(tempfile, dstFile);
+            }
+        } catch (IOException e) {
+            return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, MIME_PLAINTEXT, e.getMessage());
+        } catch (ResponseException e) {
+            return newFixedLengthResponse(e.getStatus(), MIME_PLAINTEXT, e.getMessage());
+        }
+
+        return newFixedLengthResponse(Response.Status.OK, MIME_PLAINTEXT, "");
     }
 
     private Response newFixedFileResponse(File file, String mime) throws FileNotFoundException {
