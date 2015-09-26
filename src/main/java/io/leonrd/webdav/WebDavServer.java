@@ -87,7 +87,7 @@ public class WebDavServer extends NanoHTTPD {
         }
     };
 
-    private final static String ALLOWED_METHODS = "GET, DELETE, OPTIONS, HEAD, PROPFIND";
+    private final static String ALLOWED_METHODS = "GET, DELETE, OPTIONS, HEAD, PROPFIND, MKCOL";
 
     private static final DateFormat DATE_FORMAT = new SimpleDateFormat("E, d MMM yyyy HH:mm:ss 'GMT'", Locale.getDefault());
 
@@ -222,6 +222,7 @@ public class WebDavServer extends NanoHTTPD {
             case PROPFIND: return handlePROPFIND(uri, headers);
             case GET:case HEAD: return handleGET(uri, headers);
             case DELETE: return handleDELETE(uri, headers);
+            case MKCOL: return handleMKCOL(uri);
             default: return getForbiddenErrorResponse("");
         }
     }
@@ -498,6 +499,18 @@ public class WebDavServer extends NanoHTTPD {
 
         if (!file.delete()) {
             return getInternalErrorResponse("Failed deleting " + uri);
+        }
+
+        return newFixedLengthResponse(Response.Status.NO_CONTENT, MIME_PLAINTEXT, "");
+    }
+
+    protected Response handleMKCOL(final String uri) {
+
+        final String absolutePath = appendPathComponent(rootDir.getAbsolutePath(), uri);
+        final File file = new File(absolutePath);
+
+        if (!file.mkdirs()) {
+            return getInternalErrorResponse("Failed creating directory " + uri);
         }
 
         return newFixedLengthResponse(Response.Status.NO_CONTENT, MIME_PLAINTEXT, "");
