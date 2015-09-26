@@ -799,6 +799,7 @@ public class WebDavServer extends NanoHTTPD {
         parser.nextTag();
         String scope = parser.getName();
         parser.nextTag();
+        parser.require(XmlPullParser.END_TAG, namespace, scope);
         parser.nextTag();
         parser.require(XmlPullParser.END_TAG, namespace, "lockscope");
         return scope;
@@ -809,6 +810,7 @@ public class WebDavServer extends NanoHTTPD {
         parser.nextTag();
         String type = parser.getName();
         parser.nextTag();
+        parser.require(XmlPullParser.END_TAG, namespace, type);
         parser.nextTag();
         parser.require(XmlPullParser.END_TAG, namespace, "locktype");
         return type;
