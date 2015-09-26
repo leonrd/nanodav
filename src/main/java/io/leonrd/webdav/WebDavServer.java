@@ -40,6 +40,7 @@ import java.net.URLEncoder;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.logging.FileHandler;
 
 public class WebDavServer extends NanoHTTPD {
 
@@ -87,7 +88,7 @@ public class WebDavServer extends NanoHTTPD {
         }
     };
 
-    private final static String ALLOWED_METHODS = "GET, DELETE, OPTIONS, HEAD, PROPFIND, MKCOL";
+    private final static String ALLOWED_METHODS = "GET, DELETE, OPTIONS, HEAD, PROPFIND, MKCOL, COPY, MOVE";
 
     private static final DateFormat DATE_FORMAT = new SimpleDateFormat("E, d MMM yyyy HH:mm:ss 'GMT'", Locale.getDefault());
 
@@ -223,6 +224,8 @@ public class WebDavServer extends NanoHTTPD {
             case GET:case HEAD: return handleGET(uri, headers);
             case DELETE: return handleDELETE(uri, headers);
             case MKCOL: return handleMKCOL(uri);
+            case COPY: return handleCOPYorMOVE(uri, headers, false);
+            case MOVE: return handleCOPYorMOVE(uri, headers, true);
             default: return getForbiddenErrorResponse("");
         }
     }
@@ -514,6 +517,133 @@ public class WebDavServer extends NanoHTTPD {
         }
 
         return newFixedLengthResponse(Response.Status.NO_CONTENT, MIME_PLAINTEXT, "");
+    }
+
+    protected Response handleCOPYorMOVE(final String uri, final Map<String, String> headers, final boolean move) {
+
+        if (!move) {
+            String depthHeader = headers.get("depth");
+            // TODO: Support "Depth: 0"
+            if (depthHeader != null && !depthHeader.equalsIgnoreCase("infinity")) {
+                return getBadRequestErrorResponse("Unsupported 'Depth' header: " + depthHeader);
+            }
+        }
+
+        if (!canServeUri(uri)) {
+            return getNotFoundErrorResponse("");
+        }
+
+        final String srcRelativePath = uri;
+        final String srcAbsolutePath = appendPathComponent(rootDir.getAbsolutePath(), uri);
+
+        String dstRelativePath = headers.get("destination");
+        final String hostHeader = headers.get("host");
+        if (dstRelativePath == null || hostHeader == null || !dstRelativePath.contains(hostHeader)) {
+            return getBadRequestErrorResponse("Malformed 'Destination' header: " + dstRelativePath);
+        }
+        dstRelativePath = dstRelativePath.substring(dstRelativePath.indexOf(hostHeader) + hostHeader.length());
+        final String dstAbsolutePath = appendPathComponent(rootDir.getAbsolutePath(), dstRelativePath);
+
+        final File srcFile = new File(srcAbsolutePath);
+        final File dstFile = new File(dstAbsolutePath);
+        final File dstParent = dstFile.getParentFile();
+        final boolean existing = dstFile.exists();
+        if (!dstParent.exists() || !dstParent.isDirectory()) {
+            return newFixedLengthResponse(Response.Status.CONFLICT, MIME_PLAINTEXT, "Invalid destination " + dstRelativePath);
+        }
+
+        final String overwriteHeader = headers.get("overwrite");
+        if (existing &&
+                (overwriteHeader == null
+                        || (move && !overwriteHeader.equalsIgnoreCase("T"))
+                        || (!move && overwriteHeader.equalsIgnoreCase("F")))) {
+
+            return newFixedLengthResponse(Response.Status.PRECONDITION_FAILED, MIME_PLAINTEXT, "Destination " + dstRelativePath + " already exists");
+        }
+
+        if (existing) {
+            dstFile.delete();
+        }
+
+        if (move) {
+            if (!srcFile.renameTo(dstFile)) {
+                return getForbiddenErrorResponse("Failed moving " + srcRelativePath + " to " + dstRelativePath);
+            }
+        }
+        else {
+            if (!copyFileOrDirectory(srcFile, dstFile)) {
+                return getForbiddenErrorResponse("Failed copying " + srcRelativePath + " to " + dstRelativePath);
+            }
+        }
+
+        return newFixedLengthResponse(existing ? Response.Status.NO_CONTENT : Response.Status.CREATED, MIME_PLAINTEXT, "");
+    }
+
+    public static boolean copyFileOrDirectory(final File srcFile, final File dstFile) {
+        boolean result = true;
+        try {
+            if (srcFile.isDirectory()) {
+
+                String files[] = srcFile.list();
+                int filesLength = files.length;
+                for (int i = 0; i < filesLength; i++) {
+                    File src1 = new File(srcFile, files[i]);
+                    copyFileOrDirectory(src1, dstFile);
+
+                }
+            } else {
+                copyFile(srcFile, dstFile);
+            }
+        } catch (IOException e) {
+            result = false;
+            e.printStackTrace();
+        }
+
+        return result;
+    }
+
+    public static boolean copyFile(File srcFile, File dstFile) throws IOException {
+        boolean result = true;
+        if (!dstFile.getParentFile().exists())
+            dstFile.getParentFile().mkdirs();
+
+        if (!dstFile.exists()) {
+            dstFile.createNewFile();
+        }
+
+        FileInputStream in = null;
+        FileOutputStream out = null;
+        try {
+            // Transfer bytes from in to out
+            byte[] buf = new byte[1024];
+            int len;
+            while ((len = in.read(buf)) > 0) {
+                out.write(buf, 0, len);
+            }
+        } catch (IOException e) {
+            result = false;
+            e.printStackTrace();
+        } finally {
+            if (in != null) {
+                in.close();
+            }
+            if (out != null) {
+                out.close();
+            }
+        }
+        return result;
+    }
+
+    protected Response handlePUT(final String uri) {
+        return null;
+    }
+
+    protected Response handleLOCK(final String uri) {
+        return null;
+    }
+
+    protected Response handleUNLOCK(final String uri) {
+        return null;
     }
 
     private Response newFixedFileResponse(File file, String mime) throws FileNotFoundException {

@@ -1133,6 +1133,7 @@ public abstract class NanoHTTPD {
             NOT_ACCEPTABLE(406, "Not Acceptable"),
             REQUEST_TIMEOUT(408, "Request Timeout"),
             CONFLICT(409, "Conflict"),
+            PRECONDITION_FAILED(412, "Precondition Failed"),
             RANGE_NOT_SATISFIABLE(416, "Requested Range Not Satisfiable"),
             INTERNAL_ERROR(500, "Internal Server Error"),
             NOT_IMPLEMENTED(501, "Not Implemented"),
