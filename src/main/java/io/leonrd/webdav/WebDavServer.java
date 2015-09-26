@@ -61,7 +61,7 @@ public class WebDavServer extends NanoHTTPD {
             put("css", "text/css");
             put("htm", "text/html");
             put("html", "text/html");
-            put("xml", "text/xml");
+            put("xml", "application/xml");
             put("java", "text/x-java-source, text/java");
             put("md", "text/plain");
             put("txt", "text/plain");
@@ -90,12 +90,9 @@ public class WebDavServer extends NanoHTTPD {
         }
     };
 
-    private final static String ALLOWED_METHODS = "GET, DELETE, OPTIONS, HEAD, PROPFIND, MKCOL, COPY, MOVE, PUT, LOCK, UNLOCK";
-
-    private static final DateFormat DATE_FORMAT = new SimpleDateFormat("E, d MMM yyyy HH:mm:ss 'GMT'", Locale.getDefault());
-
     private boolean quiet;
     protected File rootDir;
+    private DateFormat dateFormat;
 
     public WebDavServer(String host, int port, File rootDir, boolean quiet) {
         super(host, port);
@@ -106,11 +103,15 @@ public class WebDavServer extends NanoHTTPD {
             this.rootDir = new File("").getAbsoluteFile();
         }
 
+        this.dateFormat = new SimpleDateFormat("E, d MMM yyyy HH:mm:ss 'GMT'", Locale.getDefault());
+        this.dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
+        this.dateFormat.setLenient(false);
+
         init();
     }
 
     private String appendPathComponent(final String path, final String component) {
-        if (path.endsWith("/")) {
+        if (path.endsWith("/") || component.startsWith("/")) {
             return path + component;
         } else {
             return path + "/" + component;
@@ -155,24 +156,24 @@ public class WebDavServer extends NanoHTTPD {
     }
 
     protected Response getBadRequestErrorResponse(String s) {
-        return newFixedLengthResponse(Response.Status.BAD_REQUEST, NanoHTTPD.MIME_PLAINTEXT, "BAD REQUEST: " + s);
+        return newFixedLengthResponse(Response.Status.BAD_REQUEST, NanoHTTPD.MIME_HTML, "BAD REQUEST: " + s);
     }
 
     protected Response getNotFoundErrorResponse(String s) {
-        return newFixedLengthResponse(Response.Status.NOT_FOUND, NanoHTTPD.MIME_PLAINTEXT, "NOT FOUND: " + s);
+        return newFixedLengthResponse(Response.Status.NOT_FOUND, NanoHTTPD.MIME_HTML, "NOT FOUND: " + s);
     }
 
     protected Response getForbiddenErrorResponse(String s) {
-        return newFixedLengthResponse(Response.Status.FORBIDDEN, NanoHTTPD.MIME_PLAINTEXT, "FORBIDDEN: " + s);
+        return newFixedLengthResponse(Response.Status.FORBIDDEN, NanoHTTPD.MIME_HTML, "FORBIDDEN: " + s);
     }
 
     protected Response getMethodNotAllowed(String s) {
-        return newFixedLengthResponse(Response.Status.METHOD_NOT_ALLOWED, MIME_PLAINTEXT, "METHOD NOT ALLOWED: " + s);
+        return newFixedLengthResponse(Response.Status.METHOD_NOT_ALLOWED, MIME_HTML, "METHOD NOT ALLOWED: " + s);
 
     }
 
     protected Response getInternalErrorResponse(String s) {
-        return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, NanoHTTPD.MIME_PLAINTEXT, "INTERNAL ERROR: " + s);
+        return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, NanoHTTPD.MIME_HTML, "INTERNAL ERROR: " + s);
     }
 
     public static Response newFixedLengthResponse(Response.IStatus status, String mimeType, String message) {
@@ -253,16 +254,12 @@ public class WebDavServer extends NanoHTTPD {
     }
 
     protected Response handleOPTIONS(final Map<String, String> headers) {
-        Response response = newFixedLengthResponse(Response.Status.OK, MIME_PLAINTEXT, "");
-
-
+        Response response = newFixedLengthResponse(Response.Status.OK, MIME_HTML, "");
         if (isMacFinder(headers)) {
             response.addHeader("DAV", "1, 2");
         } else {
             response.addHeader("DAV", "1");
         }
-        response.addHeader("Allow", ALLOWED_METHODS);
-
         return response;
     }
 
@@ -314,7 +311,7 @@ public class WebDavServer extends NanoHTTPD {
         } else {
             appendFileResource(xmlStringBuilder, uri, file);
         }
-        xmlStringBuilder.append("</D:multistatus>\n");
+        xmlStringBuilder.append("</D:multistatus>");
 
         final String content = xmlStringBuilder.toString();
 
@@ -327,16 +324,15 @@ public class WebDavServer extends NanoHTTPD {
     protected void appendCollectionResource(final StringBuilder output, final String uri, final File directory, final int depth) {
         final String displayName = directory.getName();
         // TODO: if possible, properly handle creation date
-        final String creationDate = DATE_FORMAT.format(new Date(directory.lastModified()));
-        final String lastModified = DATE_FORMAT.format(new Date(directory.lastModified()));
+        final String lastModified = dateFormat.format(new Date(directory.lastModified()));
 
         output.append("<D:response>" +
                 "<D:href>" + uri + "</D:href>\n" +
                 "<D:propstat>\n" +
                 "<D:prop>\n" +
                 "<D:displayname>" + displayName + "</D:displayname>\n" +
-                "<D:creationdate>" + creationDate + "</D:creationdate\n>" +
-                "<D:getlastmodified>" + lastModified + "</D:getlastmodified\n>" +
+//                "<D:creationdate>" + creationDate + "</D:creationdate\n>" +
+                "<D:getlastmodified>" + lastModified + "</D:getlastmodified>\n" +
                 "<D:resourcetype><D:collection/></D:resourcetype>\n" +
                 "</D:prop>\n" +
                 "<D:status>HTTP/1.1 200 OK</D:status>\n" +
@@ -364,8 +360,7 @@ public class WebDavServer extends NanoHTTPD {
     protected void appendFileResource(final StringBuilder output, final String uri, final File file) {
         final String displayName = file.getName();
         // TODO: if possible, properly handle creation date
-        final String creationDate = DATE_FORMAT.format(new Date(file.lastModified()));
-        final String lastModified = DATE_FORMAT.format(new Date(file.lastModified()));
+        final String lastModified = dateFormat.format(new Date(file.lastModified()));
         final long contentLength = file.length();
 
         output.append("<D:response>\n" +
@@ -373,7 +368,7 @@ public class WebDavServer extends NanoHTTPD {
                 "<D:propstat>\n" +
                 "<D:prop>\n" +
                 "<D:displayname>" + displayName + "</D:displayname>\n" +
-                "<D:creationdate>" + creationDate + "</D:creationdate>\n" +
+//                "<D:creationdate>" + creationDate + "</D:creationdate>\n" +
                 "<D:getlastmodified>" + lastModified + "</D:getlastmodified>\n" +
                 "<D:getcontentlength>" + contentLength + "</D:getcontentlength>\n" +
                 "<D:resourcetype/>\n" +
@@ -393,7 +388,7 @@ public class WebDavServer extends NanoHTTPD {
 
         // Because HEAD requests are mapped to GET ones, we need to handle directories but it's OK to return nothing per http://webdav.org/specs/rfc4918.html#rfc.section.9.4
         if (file.isDirectory()) {
-            return newFixedLengthResponse(Response.Status.OK, MIME_PLAINTEXT, "");
+            return newFixedLengthResponse(Response.Status.OK, MIME_HTML, "");
         }
 
         String mimeTypeForFile = getMimeTypeForFile(uri);
@@ -474,7 +469,7 @@ public class WebDavServer extends NanoHTTPD {
                 if (headerIfRangeMissingOrMatching && range != null && startFrom >= fileLen) {
                     // return the size of the file
                     // 4xx responses are not trumped by if-none-match
-                    res = newFixedLengthResponse(Response.Status.RANGE_NOT_SATISFIABLE, NanoHTTPD.MIME_PLAINTEXT, "");
+                    res = newFixedLengthResponse(Response.Status.RANGE_NOT_SATISFIABLE, NanoHTTPD.MIME_HTML, "");
                     res.addHeader("Content-Range", "bytes */" + fileLen);
                     res.addHeader("ETag", etag);
                 } else if (range == null && headerIfNoneMatchPresentAndMatching) {
@@ -521,7 +516,7 @@ public class WebDavServer extends NanoHTTPD {
             return getInternalErrorResponse("Failed deleting " + uri);
         }
 
-        return newFixedLengthResponse(Response.Status.NO_CONTENT, MIME_PLAINTEXT, "");
+        return newFixedLengthResponse(Response.Status.NO_CONTENT, MIME_HTML, "");
     }
 
     protected Response handleMKCOL(final String uri) {
@@ -533,7 +528,7 @@ public class WebDavServer extends NanoHTTPD {
             return getInternalErrorResponse("Failed creating directory " + uri);
         }
 
-        return newFixedLengthResponse(Response.Status.NO_CONTENT, MIME_PLAINTEXT, "");
+        return newFixedLengthResponse(Response.Status.NO_CONTENT, MIME_HTML, "");
     }
 
     protected Response handleCOPYorMOVE(final String uri, final Map<String, String> headers, final boolean move) {
@@ -565,7 +560,7 @@ public class WebDavServer extends NanoHTTPD {
         final File dstParent = dstFile.getParentFile();
         final boolean existing = dstFile.exists();
         if (!dstParent.exists() || !dstParent.isDirectory()) {
-            return newFixedLengthResponse(Response.Status.CONFLICT, MIME_PLAINTEXT, "Invalid destination " + dstRelativePath);
+            return newFixedLengthResponse(Response.Status.CONFLICT, MIME_HTML, "Invalid destination " + dstRelativePath);
         }
 
         boolean overwrite = false;
@@ -577,7 +572,7 @@ public class WebDavServer extends NanoHTTPD {
         }
 
         if (existing && !overwrite) {
-            return newFixedLengthResponse(Response.Status.PRECONDITION_FAILED, MIME_PLAINTEXT, "Destination " + dstRelativePath + " already exists");
+            return newFixedLengthResponse(Response.Status.PRECONDITION_FAILED, MIME_HTML, "Destination " + dstRelativePath + " already exists");
         }
 
         if (existing) {
@@ -595,7 +590,7 @@ public class WebDavServer extends NanoHTTPD {
             }
         }
 
-        return newFixedLengthResponse(existing ? Response.Status.NO_CONTENT : Response.Status.CREATED, MIME_PLAINTEXT, "");
+        return newFixedLengthResponse(existing ? Response.Status.NO_CONTENT : Response.Status.CREATED, MIME_HTML, "");
     }
 
     public static boolean copyFileOrDirectory(final File srcFile, final File dstFile) {
@@ -630,24 +625,31 @@ public class WebDavServer extends NanoHTTPD {
             dstFile.createNewFile();
         }
 
-        FileInputStream in = null;
-        FileOutputStream out = null;
-        try {
-            // Transfer bytes from in to out
-            byte[] buf = new byte[1024];
-            int len;
-            while ((len = in.read(buf)) > 0) {
-                out.write(buf, 0, len);
-            }
-        } catch (IOException e) {
-            result = false;
-            e.printStackTrace();
-        } finally {
-            if (in != null) {
-                in.close();
-            }
-            if (out != null) {
-                out.close();
+        if (srcFile.exists()) {
+
+            FileInputStream in = null;
+            FileOutputStream out = null;
+            try {
+
+                in = new FileInputStream(srcFile);
+                out = new FileOutputStream(dstFile);
+
+                // Transfer bytes from in to out
+                byte[] buf = new byte[1024];
+                int len;
+                while ((len = in.read(buf)) > 0) {
+                    out.write(buf, 0, len);
+                }
+            } catch (IOException e) {
+                result = false;
+                e.printStackTrace();
+            } finally {
+                if (in != null) {
+                    in.close();
+                }
+                if (out != null) {
+                    out.close();
+                }
             }
         }
         return result;
@@ -660,7 +662,7 @@ public class WebDavServer extends NanoHTTPD {
         final boolean existing = dstFile.exists();
         final File dstParent = dstFile.getParentFile();
         if (!dstParent.exists() || !dstParent.isDirectory()) {
-            return newFixedLengthResponse(Response.Status.CONFLICT, MIME_PLAINTEXT, "Missing intermediate collection(s) for " + dstRelativePath);
+            return newFixedLengthResponse(Response.Status.CONFLICT, MIME_HTML, "Missing intermediate collection(s) for " + dstRelativePath);
         }
 
         if (existing && dstFile.isDirectory()) {
@@ -682,12 +684,12 @@ public class WebDavServer extends NanoHTTPD {
                 copyFileOrDirectory(tempfile, dstFile);
             }
         } catch (IOException e) {
-            return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, MIME_PLAINTEXT, e.getMessage());
+            return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, MIME_HTML, e.getMessage());
         } catch (ResponseException e) {
-            return newFixedLengthResponse(e.getStatus(), MIME_PLAINTEXT, e.getMessage());
+            return newFixedLengthResponse(e.getStatus(), MIME_HTML, e.getMessage());
         }
 
-        return newFixedLengthResponse(Response.Status.OK, MIME_PLAINTEXT, "");
+        return newFixedLengthResponse(existing ? Response.Status.NO_CONTENT : Response.Status.CREATED, MIME_HTML, "");
     }
 
     protected Response handleLOCK(final String uri, final Map<String, String> headers, final IHTTPSession session) {
@@ -782,12 +784,11 @@ public class WebDavServer extends NanoHTTPD {
             content += "<D:timeout>" + timeoutHeader + "</D:timeout>\n";
         }
         content += "<D:locktoken><D:href>" + token + "</D:href></D:locktoken>\n" +
-                "<D:lockroot><D:href>http://" + headers.get("host") + "/" + uri + "</D:href></D:lockroot>\n" +
+                "<D:lockroot><D:href>http://" + appendPathComponent(headers.get("host"), uri) + "</D:href></D:lockroot>\n" +
                 "</D:activelock>\n</D:lockdiscovery>\n" +
                 "</D:prop>";
 
-
-        return newFixedLengthResponse(Response.Status.MULTI_STATUS, MIME_TYPES.get("xml"), content);
+        return newFixedLengthResponse(Response.Status.OK, MIME_TYPES.get("xml"), content);
     }
 
     private void skip(XmlPullParser parser) throws XmlPullParserException, IOException {
@@ -865,7 +866,7 @@ public class WebDavServer extends NanoHTTPD {
             return getBadRequestErrorResponse("Missing 'Lock-Token' header");
         }
 
-        return newFixedLengthResponse(Response.Status.NO_CONTENT, MIME_PLAINTEXT, "");
+        return newFixedLengthResponse(Response.Status.NO_CONTENT, MIME_HTML, "");
     }
 
     private Response newFixedFileResponse(File file, String mime) throws FileNotFoundException {

@@ -596,7 +596,7 @@ public abstract class NanoHTTPD {
                     int len = (fbuf.remaining() < MAX_HEADER_SIZE) ? fbuf.remaining() : MAX_HEADER_SIZE;
                     fbuf.get(part_header_buff, 0, len);
                     ByteArrayInputStream bais = new ByteArrayInputStream(part_header_buff, 0, len);
-                    BufferedReader in = new BufferedReader(new InputStreamReader(bais, Charset.forName("US-ASCII")));
+                    BufferedReader in = new BufferedReader(new InputStreamReader(bais, Charset.forName("UTF-8")));
 
                     // First line is boundary string
                     String mpline = in.readLine();
