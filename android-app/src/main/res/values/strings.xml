@@ -1,4 +1,4 @@
 <resources>
-    <string name="app_name">NanoHttpdWebDav</string>
+    <string name="app_name">WebDavServerApp</string>
     <string name="hello_world">Hello world!</string>
 </resources>

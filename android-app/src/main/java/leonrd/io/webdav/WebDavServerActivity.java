@@ -1,4 +1,4 @@
-package leonrd.io.nanohttpdwebdav;
+package leonrd.io.webdav;
 
 import android.os.Bundle;
 import android.os.Environment;
@@ -12,9 +12,9 @@ import java.io.IOException;
 import java.net.*;
 import java.util.Enumeration;
 
-public class MainActivity extends AppCompatActivity {
+public class WebDavServerActivity extends AppCompatActivity {
 
-    private static final String TAG = "NanoHttpdWebDav";
+    private static final String TAG = WebDavServerActivity.class.getName();
 
     private String address;
     private int port = 8080;
