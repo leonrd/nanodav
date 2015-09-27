@@ -1,4 +1,4 @@
-package leonrd.io.webdav;
+package leonrd.io.nanodav;
 
 import android.os.Bundle;
 import android.os.Environment;
@@ -6,7 +6,7 @@ import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 import android.widget.TextView;
 import fi.iki.elonen.NanoHTTPD;
-import io.leonrd.webdav.WebDavServer;
+import io.leonrd.nanodav.WebDavServer;
 
 import java.io.IOException;
 import java.net.*;

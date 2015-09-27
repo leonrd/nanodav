@@ -1,4 +1,4 @@
-package leonrd.io.webdav;
+package leonrd.io.nanodav;
 
 import android.app.Application;
 import android.test.ApplicationTestCase;

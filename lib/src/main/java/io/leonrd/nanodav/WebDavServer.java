@@ -1,10 +1,10 @@
-package io.leonrd.webdav;
+package io.leonrd.nanodav;
 
 /*
  * #%L
- * NanoHttpd-WebDavServer
+ * NanoDav-WebDavServer
  * %%
- * Copyright (C) 2012 - 2015 nanohttpd, 2015 Leonard Chioveanu
+ * Copyright (C) 2015 Leonard Chioveanu, 2012 - 2015 nanohttpd
  * %%
  * Redistribution and use in source and binary forms, with or without modification,
  * are permitted provided that the following conditions are met:

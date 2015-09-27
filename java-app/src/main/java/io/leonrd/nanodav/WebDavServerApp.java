@@ -1,8 +1,8 @@
-package io.leonrd.webdav;
+package io.leonrd.nanodav;
 
 /*
  * #%L
- * NanoHttpd-Webserver
+ * nanodav
  * %%
  * Copyright (C) 2012 - 2015 nanohttpd, 2015 Leonard Chioveanu
  * %%

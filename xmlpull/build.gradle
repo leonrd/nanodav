@@ -1,4 +1,4 @@
-group 'io.leonrd'
+group 'org.xmlpull'
 version '1.0-SNAPSHOT'
 
 apply plugin: 'java'
