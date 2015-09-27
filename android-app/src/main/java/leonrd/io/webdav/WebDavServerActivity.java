@@ -49,7 +49,7 @@ public class WebDavServerActivity extends AppCompatActivity {
         try {
             server = new WebDavServer(null, port, Environment.getExternalStorageDirectory(), false);
             server.start(NanoHTTPD.SOCKET_READ_TIMEOUT, false);
-            Log.d(TAG, "Now listening on http://" + address + ":" + port + "/");
+            Log.d(TAG, "Started listening on http://" + address + ":" + port + "/");
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -60,6 +60,7 @@ public class WebDavServerActivity extends AppCompatActivity {
         if (server != null) {
             server.stop();
             server = null;
+            Log.d(TAG, "Stopped listening on http://" + address + ":" + port + "/");
         }
     }
 
