@@ -1,2 +1,1 @@
-rootProject.name = 'nanohttpd-webdav'
-
+include ':xmlpull', ':lib', ':java-app', ':android-app'
