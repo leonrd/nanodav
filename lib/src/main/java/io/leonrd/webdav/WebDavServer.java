@@ -43,6 +43,8 @@ import java.net.URLEncoder;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public class WebDavServer extends NanoHTTPD {
 
@@ -89,6 +91,8 @@ public class WebDavServer extends NanoHTTPD {
             put("ts", " video/mp2t");
         }
     };
+
+    private static final Logger LOG = Logger.getLogger(WebDavServer.class.getName());
 
     private boolean quiet;
     protected File rootDir;
@@ -207,17 +211,17 @@ public class WebDavServer extends NanoHTTPD {
         final Map<String, String> parms = session.getParms();
 
         if (!this.quiet) {
-            System.out.println(session.getMethod() + " '" + uri + "' ");
+           LOG.log(Level.INFO, session.getMethod() + " '" + uri + "' ");
 
             Iterator<String> e = headers.keySet().iterator();
             while (e.hasNext()) {
                 String value = e.next();
-                System.out.println("  HDR: '" + value + "' = '" + headers.get(value) + "'");
+                LOG.log(Level.INFO, "  HDR: '" + value + "' = '" + headers.get(value) + "'");
             }
             e = parms.keySet().iterator();
             while (e.hasNext()) {
                 String value = e.next();
-                System.out.println("  PRM: '" + value + "' = '" + parms.get(value) + "'");
+                LOG.log(Level.INFO, "  PRM: '" + value + "' = '" + parms.get(value) + "'");
             }
         }
 
@@ -242,7 +246,7 @@ public class WebDavServer extends NanoHTTPD {
         }
 
         if (!this.quiet) {
-            System.out.println("  STATUS: " + response.getStatus());
+            LOG.log(Level.INFO, "  STATUS: " + response.getStatus());
         }
 
         return response;
@@ -733,9 +737,10 @@ public class WebDavServer extends NanoHTTPD {
             }
 
         } catch (XmlPullParserException e) {
+            LOG.log(Level.SEVERE, "Error parsing lock response: ", e);
             success = false;
         } catch (Exception e) {
-            e.printStackTrace();
+            LOG.log(Level.SEVERE, "Error parsing lock response: ", e);
             success = false;
         } finally {
             try {
@@ -743,7 +748,7 @@ public class WebDavServer extends NanoHTTPD {
                     byteInputStream.close();
                 }
             } catch (IOException e) {
-                e.printStackTrace();
+                LOG.log(Level.SEVERE, "Error closing input stream: ", e);
             }
         }
 
